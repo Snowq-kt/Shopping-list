@@ -3,6 +3,7 @@ package com.example.shoppinglist.presentation
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.os.PersistableBundle
 import android.widget.Button
 import android.widget.EditText
 import android.widget.Toast
@@ -15,77 +16,46 @@ import androidx.lifecycle.ViewModelProvider
 import com.example.shoppinglist.R
 import kotlin.properties.Delegates
 
-class ShopItemActivity : AppCompatActivity() {
+class ShopItemActivity : AppCompatActivity(), ShopItemFragment.OnEditingDoneListener {
 
-    private lateinit var countET: EditText
-    private lateinit var nameET: EditText
-    private lateinit var buttonDone: Button
-
-    private lateinit var viewModel: ShopItemViewModel
-
-    private lateinit var mode: String
-    private var extraId by Delegates.notNull<Int>()
-
+    private var mode = ""
+    private var extraId = -1
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
         setContentView(R.layout.activity_shop_item)
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
         }
-        initViews()
-        viewModel = ViewModelProvider(this)[ShopItemViewModel::class.java]
-        observeViewModel()
-        setupRightMode()
-    }
-
-
-    private fun observeViewModel() {
-        viewModel.shouldCloseScreen.observe(this) {
-            finish()
-        }
-        viewModel.errorText.observe(this) {
-            Toast.makeText(this, it, Toast.LENGTH_SHORT).show()
+        parseIntent()
+        if (savedInstanceState == null) {
+            launchFragment()
         }
     }
 
-    private fun setupRightMode() {
-        mode = intent.getStringExtra(EXTRA_MODE).toString()
-        when (mode) {
-            ADDING_MODE -> addingMode()
-            EDITING_MODE -> editingMode()
-            else -> throw RuntimeException("The data is corrupted")
+    private fun parseIntent() {
+        val specMode = intent.getStringExtra(EXTRA_MODE)
+        if (specMode != null) {
+            mode = specMode
+        }
+        if (mode == EDITING_MODE) {
+            extraId = intent.getIntExtra(EXTRA_ID, -1)
         }
     }
 
-    private fun addingMode() {
-        buttonDone.setOnClickListener {
-            viewModel.addShopItem(nameET.text.toString(), countET.text.toString().toInt())
+    private fun launchFragment() {
+        val fragment = when (mode) {
+            EDITING_MODE -> ShopItemFragment.newInstanceEditItem(extraId)
+            ADDING_MODE  -> ShopItemFragment.newInstanceAddItem()
+            else      -> throw RuntimeException("Unknown screen mode $mode")
         }
+        supportFragmentManager.beginTransaction()
+            .replace(R.id.shop_item_container, fragment)
+            .commit()
     }
 
-    private fun editingMode() {
-        viewModel.getShopItem(extraId)
-        viewModel.shopItem.observe(this) {
-            countET.setText(it.count.toString())
-            nameET.setText(it.name)
-        }
-        buttonDone.setOnClickListener {
-            viewModel.changeShopItem(nameET.text.toString(), countET.text.toString().toInt())
-        }
-    }
-
-
-
-    private fun initViews() {
-        countET = findViewById(R.id.countET)
-        nameET = findViewById(R.id.nameET)
-        buttonDone = findViewById(R.id.buttonDone)
-        extraId = intent.getIntExtra(EXTRA_ID, -1)
-    }
     companion object {
 
         private const val EXTRA_MODE = "extra_mode"
@@ -105,5 +75,9 @@ class ShopItemActivity : AppCompatActivity() {
             intent.putExtra(EXTRA_ID, shopItemId)
             return intent
         }
+    }
+
+    override fun onEditingDone() {
+        finish()
     }
 }
